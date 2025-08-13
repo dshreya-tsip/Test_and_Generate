@@ -10,31 +10,33 @@ def extract_requirements(doc_path):
     requirements = []
     functional_section = False
 
+    print("DEBUG: Starting to read paragraphs...")  # Debug line
+
     for para in doc.paragraphs:
         text = para.text.strip()
+        print(f"DEBUG: Paragraph -> '{text}'")  # Debug line
 
-        # Skip empty lines
         if not text:
             continue
 
-        # Detect start of functional requirements
         if "Functional Requirements" in text:
             functional_section = True
+            print("DEBUG: Found Functional Requirements section")  # Debug line
             continue
         elif "Non-Functional Requirements" in text:
-            functional_section = False  # Stop at next major section
+            functional_section = False
+            print("DEBUG: End of Functional Requirements section")  # Debug line
             continue
 
-        # If we're in the functional section, collect all reasonable sentences
         if functional_section and len(text.split()) >= 4:
+            print(f"DEBUG: Adding requirement -> '{text}'")  # Debug line
             requirements.append(text)
-
-        # Also collect any bullet points (outside of sections)
         elif text.startswith("-") and len(text.split()) >= 4:
+            print(f"DEBUG: Adding bullet requirement -> '{text}'")  # Debug line
             requirements.append(text)
 
+    print(f"DEBUG: Total requirements found: {len(requirements)}")  # Debug line
     return requirements
-
 
 def generate_test_file(requirements, test_file_path):
     test_code = [
