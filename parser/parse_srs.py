@@ -4,15 +4,37 @@ import pytest
 import os
 
 def extract_requirements(doc_path):
+    from docx import Document
+
     doc = Document(doc_path)
     requirements = []
+    functional_section = False
+
     for para in doc.paragraphs:
         text = para.text.strip()
+
+        # Skip empty lines
         if not text:
             continue
-        if text.startswith("-") or text.lower().startswith(("users must", "users can", "user must", "user can")):
+
+        # Detect start of functional requirements
+        if "Functional Requirements" in text:
+            functional_section = True
+            continue
+        elif "Non-Functional Requirements" in text:
+            functional_section = False  # Stop at next major section
+            continue
+
+        # If we're in the functional section, collect all reasonable sentences
+        if functional_section and len(text.split()) >= 4:
             requirements.append(text)
+
+        # Also collect any bullet points (outside of sections)
+        elif text.startswith("-") and len(text.split()) >= 4:
+            requirements.append(text)
+
     return requirements
+
 
 def generate_test_file(requirements, test_file_path):
     test_code = [
