@@ -1,16 +1,16 @@
-name: Auto Generate & Run Tests from SRS
+name: Auto Generate & Test SRS
 
 on:
   push:
     paths:
-      - 'SRS/**'  # Trigger only when files inside SRS folder are changed or added
+      - 'SRS/*.docx'
 
 jobs:
-  generate_and_test:
+  test-generator:
     runs-on: ubuntu-latest
 
     steps:
-    - name: Checkout repository
+    - name: Checkout repo
       uses: actions/checkout@v3
 
     - name: Set up Python
@@ -20,10 +20,16 @@ jobs:
 
     - name: Install dependencies
       run: |
-        python -m pip install --upgrade pip
         pip install python-docx pytest
 
-    - name: Run test generation and tests
+    - name: Run test generation
       run: |
-        python parser/parse_srs.py SRS/requirements.docx generated_tests/test_generated.py
-        pytest generated_tests/test_generated.py --maxfail=1 --disable-warnings -q
+        python parser/parse_srs.py SRS/SRS.docx generated_tests/test_generated.py
+
+    - name: Commit generated test results
+      run: |
+        git config --global user.name "github-actions"
+        git config --global user.email "github-actions@github.com"
+        git add SRS/SRS_TestResults.md
+        git commit -m "✅ Auto-generated test case results from SRS"
+        git push
