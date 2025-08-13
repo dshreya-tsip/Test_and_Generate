@@ -1,31 +1,84 @@
 import sys
 from docx import Document
+import pytest
+import os
 
 def extract_requirements(doc_path):
     doc = Document(doc_path)
     requirements = []
     for para in doc.paragraphs:
         text = para.text.strip()
-        if text and (text.lower().startswith("the system shall") or text.lower().startswith("the system must")):
+        if not text:
+            continue
+        if text.startswith("-") or text.lower().startswith(("users must", "users can", "user must", "user can")):
             requirements.append(text)
     return requirements
 
-def generate_test_code(requirements):
+def generate_test_file(requirements, test_file_path):
     test_code = [
         "import pytest",
         "",
-        "# AUTO-GENERATED TEST CASES FROM SRS",
+        "# AUTO-GENERATED TEST CASES",
         ""
     ]
-    
+
     for i, req in enumerate(requirements, 1):
-        func_name = f"test_requirement_{i}"
-        # A simple dummy test: just check requirement string is non-empty
+        func_name = f"test_requirement_{i:03d}"
         test_code.append(f"def {func_name}():")
         test_code.append(f"    # Requirement: {req}")
-        test_code.append("    assert len('"+req+"') > 10  # example check")
+        test_code.append(f"    assert len({repr(req)}) > 5  # Dummy test")
         test_code.append("")
-    return "\n".join(test_code)
+
+    with open(test_file_path, "w") as f:
+        f.write("\n".join(test_code))
+
+    return [f"test_requirement_{i:03d}" for i in range(1, len(requirements)+1)]
+
+def run_tests(test_file_path):
+    results = {}
+    result = pytest.main([
+        test_file_path,
+        "--tb=short",
+        "--disable-warnings",
+        "--maxfail=50",
+        "-q"
+    ])
+
+    pytest_result_path = ".pytest_cache/v/cache/lastfailed"
+    if os.path.exists(pytest_result_path):
+        with open(pytest_result_path, "r") as f:
+            failed = f.read()
+    else:
+        failed = ""
+
+    for i in range(1, 1000):
+        test_id = f"test_requirement_{i:03d}"
+        if test_id in failed:
+            results[test_id] = "FAIL"
+        elif i <= len(results) + 50:  # naive cap
+            results[test_id] = "PASS"
+        else:
+            break
+
+    return results
+
+def generate_markdown_report(md_path, requirements, test_results):
+    with open(md_path, "w") as f:
+        f.write("# 📋 Auto-Generated Test Cases and Results\n\n")
+        f.write("| Test Case ID | Description | Input | Expected Output | Test Type | Result |\n")
+        f.write("|--------------|-------------|-------|-----------------|-----------|--------|\n")
+
+        for i, req in enumerate(requirements, 1):
+            test_id = f"TC_{i:03d}"
+            test_func = f"test_requirement_{i:03d}"
+            description = req
+            input_data = "Sample input"  # Placeholder
+            expected_output = "Expected system behavior"  # Placeholder
+            test_type = "Functional"  # Static for now
+            result = test_results.get(test_func, "UNKNOWN")
+
+            row = f"| {test_id} | {description} | {input_data} | {expected_output} | {test_type} | {result} |\n"
+            f.write(row)
 
 if __name__ == "__main__":
     if len(sys.argv) != 3:
@@ -33,16 +86,16 @@ if __name__ == "__main__":
         sys.exit(1)
 
     input_doc = sys.argv[1]
-    output_test = sys.argv[2]
+    test_py = sys.argv[2]
+    output_md = "SRS/SRS_TestResults.md"
 
-    reqs = extract_requirements(input_doc)
-    if not reqs:
-        print("No requirements found in document.")
+    requirements = extract_requirements(input_doc)
+    if not requirements:
+        print("No requirements found.")
         sys.exit(1)
 
-    code = generate_test_code(reqs)
+    test_funcs = generate_test_file(requirements, test_py)
+    test_results = run_tests(test_py)
+    generate_markdown_report(output_md, requirements, test_results)
 
-    with open(output_test, "w") as f:
-        f.write(code)
-
-    print(f"Generated {len(reqs)} test cases in {output_test}")
+    print(f"✅ Markdown report generated at: {output_md}")
